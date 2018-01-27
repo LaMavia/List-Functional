@@ -1,0 +1,36 @@
+{
+  "name": "sandboxts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "dev": "tsc -w index --target ESNEXT --strict",
+    "start": "node ./index"
+  },
+  "author": "LastShadowPL",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/jest": "^22.0.1",
+    "jest": "^22.1.4",
+    "ts-jest": "^22.0.1",
+    "typescript": "^2.6.2"
+  },
+  "jest": {
+    "transform": {
+      "^.+\\.tsx?$": "ts-jest"
+    },
+    "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$",
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js",
+      "jsx",
+      "json",
+      "node"
+    ]
+  },
+  "dependencies": {
+    "ramda": "^0.25.0"
+  }
+}

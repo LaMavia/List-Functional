@@ -1,21 +1,31 @@
 import { Maybe } from "./Monads"
-import { keeper, random, enumerate, even, smallerThanTen, notZero, smallerThan, odd, voider, positive, negator, randChar, fewerThan, double } from './Toolbelt'
-
+import { keeper, random, enumerate, even, smallerThanTen, notZero, smallerThan, odd, voider, positive, negator, randChar, fewerThan, double, Person, usersOnly } from './Toolbelt'
+import { values, flatten } from 'ramda'
 export type IO = (args?:any) => void
+/**.filter callback function */
 export type Filter<T> = (value: T, i?: number, array?: T[]) => Boolean
 export type FilterConstruct<T> = (n: number) => Filter<T>
+/**.map callback function */
 export type Mapper<T> = (value: T, index?: number, array?: T[]) => T
-export type Filler<T> = (array: T[]) => ((value: T, index: number, array: T[]) => T)
+/**Returns mapped version of an Array*/
+export type Filler<T> = (array: T[]) => T[] 
+export type Condition = (el: any, i?: number) => Boolean
 
+/**
+ * Array on functional steroids
+ * @author Tomasz Surowiec
+ */
 export class List<Type> {
   filler: Filler<Type>
   filters: Filter<Type>[]
+  iniLength: number
   arr: Type[]
 
   constructor(filler: Filler<Type>, filters: Filter<any>[] = [], length: number = 100) {
     // super()
     this.filler = filler
     this.filters = filters
+    this.iniLength = length
     this.arr = this.withFilters(
       Maybe<any[], Type[]>([], filler, new Array(length).fill(0))
     )
@@ -23,18 +33,29 @@ export class List<Type> {
     this.withFilters = this.withFilters.bind(this)
   }
 
+  /**Set new value of the List */
   set val(newVal: any[]) {
     this.arr = this.withFilters(
       Maybe<any[], Type[]>(this.arr, keeper, newVal)
     )
   }
 
+  /**Value of the List */
   get val(){
     return this.arr
   }
 
+  /**Length of List's array */
   get length(){
     return this.arr.length
+  }
+
+  get first(){
+    return this.arr[0]
+  }
+
+  get last(){
+    return this.arr[this.length]
   }
 
   withFilters(_val: any[]): Type[]{
@@ -69,14 +90,19 @@ export class List<Type> {
     )
   }
 
-  fpush(elToAdd: any){
-    this.arr.push(elToAdd)
+  fpush(...elemsToAdd: any[]){
+    this.arr.push(...elemsToAdd)
     return this.withFilters(this.arr) 
   }
 
-  reFill(callbackFn: Filler<any> = this.filler){
+  /**/funshift(...elemsToAdd: any[]){
+  /**/  this.arr.unshift(...elemsToAdd)
+  /**/  return this.withFilters(this.arr)
+  /**/}
+
+  reFill(callbackFn: Filler<any> = this.filler) {
     return this.withFilters(
-      callbackFn(new Array(100).fill(1))
+      callbackFn(new Array(this.iniLength).fill(0))
     )
   }
 
@@ -87,6 +113,33 @@ export class List<Type> {
       ? this.shuffle() 
       : copy  
   }
+
+  dropWhile(condition: Condition){
+    const arr = this.arr.slice()
+    let temp = arr.slice()
+    for(let i = 0; condition(arr[i], i) ; i++) {
+      temp.shift()
+    }
+    return temp
+  }
+
+  span(condition: Filter<Type>){
+    const arr = flatten(this.arr.slice())
+    const output = []
+    output.push(
+      arr.reduceRight((out: Type[], el: Type, i: number) => {
+        if(condition(el, i)) {
+          arr.splice(i,1)
+          return out = [el, ...out]
+        } else {
+          return out
+        }
+      }, []),
+      arr
+    )
+    return output
+  } 
+  
 
   hasInnerArr = (arr: any[] = this.arr): boolean => {
     for(let i = 0; i < arr.length; i++){
@@ -102,9 +155,10 @@ export class List<Type> {
       .toString()
       .split(",")
       .map((el: string): any => 
-        Number(el) ? Number(el) : el
+        Number(el) ? Number(el) : el // Before that every element is a string
       ) 
   }
+
   // STATIC
   static fromOther(Lists: List<any>[]){
     const isntIn = (elToCheck: any, arr: any[]): boolean => {
@@ -130,40 +184,70 @@ export class List<Type> {
   }
 
   static compare<Ta, Tb>(a: List<Ta>, b: List<Tb>){
-    return a.sort().toString() === b.sort().toString()
+    const sortFn = (a: any, b: any) => a - b
+    if(typeof a.arr[0] !== "object" && typeof b.arr[0] !== "object"){
+      return a.sort(sortFn).toString() === b.sort(sortFn).toString()
+    } else if(typeof a.arr[0] === "object" && typeof b.arr[0] === "object"){
+      const valsA = a.arr.reduce((output: any[], el: any) => output.concat(values(el)), [])
+      const valsB = b.arr.reduce((output: any[], el: any) => output.concat(values(el)), [])
+      return valsA.sort(sortFn).toString() === valsB.sort(sortFn).toString()
+    }
+  }
+
+  static dropWhile(condition: Condition, array: any[]){
+    const arr = array.slice()
+    for(let i = 0; condition(array[i], i) ; i++) {
+      arr.shift()
+    }
+    return arr
+  }
+
+  static span(condition: Filter<any>, array: any[]){
+    const arr = flatten(array.slice())
+    const output = []
+    output.push(
+      arr.reduceRight((out: any[], el: any, i: number) => { // Pushing prefix
+        if(condition(el, i)) {
+          arr.splice(i,1)
+          return out = [el, ...out]
+        } else {
+          return out
+        }
+      }, []),
+      arr // Pushing whatever else
+    )
+    return output
   }
 
   // Functions from Array
   map(mapper: Mapper<Type>){// Returns unFiltered, mapped List's value
     return this.arr.map(mapper)
   }
-  concat(arrayToConcat: any[]){
+  concat(arrayToConcat: any[]): any[]{
     return this.arr.concat(arrayToConcat)
   }
-  push(elToPush: Type){
+  push(elToPush: Type): number{
     return this.arr.push(elToPush)
   }
-  pop(): Type | undefined{
+  pop(): Type | undefined {
     return this.arr.pop()
   }
-  // ----
-  shift(){
-    return this.arr.slice().shift()
+  shift(): Type | undefined {
+    return this.arr.shift()
   }
-  unshift(elToAdd: Type){
-    return this.arr.slice().unshift(elToAdd)
+  unshift(elToAdd: Type): number{
+    return this.arr.unshift(elToAdd)
   }
-  // ----
   reduce(callbackfn: (previousValue: any, currentValue: Type, currentIndex: number, array: Type[]) => any, initialValue: any): any{
     return this.arr.reduce(callbackfn, initialValue)
   }
   filter(filterFn: Filter<Type>): Type[]{
     return this.arr.filter(filterFn)
-  }
-  forEach(callbackfn: (value: Type, i: number, arr: Type[]) => void){
+  }   
+  forEach(callbackfn: (value: Type, i: number, arr: Type[]) => void): void{
     return this.arr.forEach(callbackfn)
   }
-  join(separator?: string | undefined): string{
+  join(separator?: string): string{
     return this.arr.join(separator)
   }
   reverse(): Type[]{
@@ -175,34 +259,18 @@ export class List<Type> {
   toString(): string{
     return this.arr.toString()
   }
-  sort(): Type[]{
+  sort(callbackfn: (a: any, b: any) => number = (a: any, b: any) => a - b): Type[]{
     return this.arr
       .slice()
-      .sort((a: any, b: any) => a - b)
+      .sort(callbackfn)
   }
 }
 
 const Main = (): void => {
-  // const thdList = new List<number>(enumerate, [notZero, smallerThan(20)])
-  // thdList.val = [2, 4, [6, 8, [10, 12], 14]]
-  // const strList = new List<string>(randChar, [fewerThan(5)])
-  // strList.val = ['a', ['b', ['c']]]
-  const strList = new List<string>(randChar, [fewerThan(5)])
-  strList.val = ['a', ['b', ['c']]]
-  const _tempL = new List<number>(enumerate, [notZero, smallerThan(4)])
-  _tempL.val = [1,3]
-  const tF: Filler<number> = (arr: number[]) => (el: number) => el *= 4
-  _tempL.reFill()
+  const odList = new List<number>(enumerate, [even, smallerThanTen, notZero])
   console.log(
-    _tempL.val
+    odList.span(smallerThan(6))
   )
-  // const NL = new List<number>(enumerate, [notZero, smallerThan(20)])
-  // new List(enumerate, [even, smallerThanTen])
-  // NL.filterMap(double)
-  // console.log(NL.filterMap(double))
-  // console.log(NL.map(double))
-  // console.log(NL.concat([1,2,3]))
-  // console.log(NL.val)  
 }
 
 Main()

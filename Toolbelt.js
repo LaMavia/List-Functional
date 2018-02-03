@@ -22,3 +22,4 @@ exports.randChar = (arr) => arr.map((el) => String.fromCharCode(Math.floor(Math.
 exports.voider = () => { };
 // Simple functions
 exports.random = (max, min = 0) => Math.floor(Math.random() * (max - min) + min);
+exports.sum = (output, num) => output += num;

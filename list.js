@@ -2,6 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const Monads_1 = require("./Monads");
 const Toolbelt_1 = require("./Toolbelt");
+const ramda_1 = require("ramda");
+/**
+ * Array on functional steroids
+ * @author Tomasz Surowiec
+ */
 class List {
     constructor(filler, filters = [], length = 100) {
         this.hasInnerArr = (arr = this.arr) => {
@@ -15,17 +20,27 @@ class List {
         // super()
         this.filler = filler;
         this.filters = filters;
+        this.iniLength = length;
         this.arr = this.withFilters(Monads_1.Maybe([], filler, new Array(length).fill(0)));
         this.withFilters = this.withFilters.bind(this);
     }
+    /**Set new value of the List */
     set val(newVal) {
         this.arr = this.withFilters(Monads_1.Maybe(this.arr, Toolbelt_1.keeper, newVal));
     }
+    /**Value of the List */
     get val() {
         return this.arr;
     }
+    /**Length of List's array */
     get length() {
         return this.arr.length;
+    }
+    get first() {
+        return this.arr[0];
+    }
+    get last() {
+        return this.arr[this.length];
     }
     withFilters(_val) {
         let copy = _val.slice();
@@ -53,12 +68,17 @@ class List {
     fconcat(arrayToConcat) {
         return this.withFilters(this.arr.concat(arrayToConcat));
     }
-    fpush(elToAdd) {
-        this.arr.push(elToAdd);
+    fpush(...elemsToAdd) {
+        this.arr.push(...elemsToAdd);
         return this.withFilters(this.arr);
     }
+    /**/ funshift(...elemsToAdd) {
+        /**/ this.arr.unshift(...elemsToAdd);
+        /**/ return this.withFilters(this.arr);
+        /**/ 
+    }
     reFill(callbackFn = this.filler) {
-        return this.withFilters(callbackFn(new Array(100).fill(1)));
+        return this.withFilters(callbackFn(new Array(this.iniLength).fill(0)));
     }
     shuffle() {
         const rand = (a, b) => (a * Math.random() * 4 - 4) - (b * Math.random() * 4 - 4);
@@ -67,11 +87,34 @@ class List {
             ? this.shuffle()
             : copy;
     }
+    dropWhile(condition) {
+        const arr = this.arr.slice();
+        let temp = arr.slice();
+        for (let i = 0; condition(arr[i], i); i++) {
+            temp.shift();
+        }
+        return temp;
+    }
+    span(condition) {
+        const arr = ramda_1.flatten(this.arr.slice());
+        const output = [];
+        output.push(arr.reduceRight((out, el, i) => {
+            if (condition(el, i)) {
+                arr.splice(i, 1);
+                return out = [el, ...out];
+            }
+            else {
+                return out;
+            }
+        }, []), arr);
+        return output;
+    }
     flatten(arr = this.arr.slice()) {
         return arr
             .toString()
             .split(",")
-            .map((el) => Number(el) ? Number(el) : el);
+            .map((el) => Number(el) ? Number(el) : el // Before that every element is a string
+        );
     }
     // STATIC
     static fromOther(Lists) {
@@ -93,7 +136,37 @@ class List {
         return NL;
     }
     static compare(a, b) {
-        return a.sort().toString() === b.sort().toString();
+        const sortFn = (a, b) => a - b;
+        if (typeof a.arr[0] !== "object" && typeof b.arr[0] !== "object") {
+            return a.sort(sortFn).toString() === b.sort(sortFn).toString();
+        }
+        else if (typeof a.arr[0] === "object" && typeof b.arr[0] === "object") {
+            const valsA = a.arr.reduce((output, el) => output.concat(ramda_1.values(el)), []);
+            const valsB = b.arr.reduce((output, el) => output.concat(ramda_1.values(el)), []);
+            return valsA.sort(sortFn).toString() === valsB.sort(sortFn).toString();
+        }
+    }
+    static dropWhile(condition, array) {
+        const arr = array.slice();
+        for (let i = 0; condition(array[i], i); i++) {
+            arr.shift();
+        }
+        return arr;
+    }
+    static span(condition, array) {
+        const arr = ramda_1.flatten(array.slice());
+        const output = [];
+        output.push(arr.reduceRight((out, el, i) => {
+            if (condition(el, i)) {
+                arr.splice(i, 1);
+                return out = [el, ...out];
+            }
+            else {
+                return out;
+            }
+        }, []), arr // Pushing whatever else
+        );
+        return output;
     }
     // Functions from Array
     map(mapper) {
@@ -108,14 +181,12 @@ class List {
     pop() {
         return this.arr.pop();
     }
-    // ----
     shift() {
-        return this.arr.slice().shift();
+        return this.arr.shift();
     }
     unshift(elToAdd) {
-        return this.arr.slice().unshift(elToAdd);
+        return this.arr.unshift(elToAdd);
     }
-    // ----
     reduce(callbackfn, initialValue) {
         return this.arr.reduce(callbackfn, initialValue);
     }
@@ -137,31 +208,15 @@ class List {
     toString() {
         return this.arr.toString();
     }
-    sort() {
+    sort(callbackfn = (a, b) => a - b) {
         return this.arr
             .slice()
-            .sort((a, b) => a - b);
+            .sort(callbackfn);
     }
 }
 exports.List = List;
 const Main = () => {
-    // const thdList = new List<number>(enumerate, [notZero, smallerThan(20)])
-    // thdList.val = [2, 4, [6, 8, [10, 12], 14]]
-    // const strList = new List<string>(randChar, [fewerThan(5)])
-    // strList.val = ['a', ['b', ['c']]]
-    const strList = new List(Toolbelt_1.randChar, [Toolbelt_1.fewerThan(5)]);
-    strList.val = ['a', ['b', ['c']]];
-    const _tempL = new List(Toolbelt_1.enumerate, [Toolbelt_1.notZero, Toolbelt_1.smallerThan(4)]);
-    _tempL.val = [1, 3];
-    const tF = (arr) => (el) => el *= 4;
-    _tempL.reFill();
-    console.log(_tempL.val);
-    // const NL = new List<number>(enumerate, [notZero, smallerThan(20)])
-    // new List(enumerate, [even, smallerThanTen])
-    // NL.filterMap(double)
-    // console.log(NL.filterMap(double))
-    // console.log(NL.map(double))
-    // console.log(NL.concat([1,2,3]))
-    // console.log(NL.val)  
+    const odList = new List(Toolbelt_1.enumerate, [Toolbelt_1.even, Toolbelt_1.smallerThanTen, Toolbelt_1.notZero]);
+    console.log(odList.span(Toolbelt_1.smallerThan(6)));
 };
 Main();
